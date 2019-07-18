@@ -1,0 +1,35 @@
+from urllib.parse import urlencode
+import requests
+import time
+import json
+
+class User:
+    def __init__(self, user_id):
+        self.user_id = user_id
+        self.first_name = None
+        self.last_name = None
+
+def user_by_id(user_id):
+    user = User(user_id)
+    user_params['user_id'] = user.user_id
+    response_user = requests.get(
+        'https://api.vk.com/method/users.get',
+        params=user_params
+    )
+    print('.', sep = '')
+    response_user_details = json.loads(response_user.text)
+    # print(response_user_details)
+    user.first_name = response_user_details['response'][0]['first_name']
+    user.last_name = response_user_details['response'][0]['last_name']
+    return user.first_name, user.last_name
+
+
+
+
+value = input('Введите имя или id пользователя ')
+try:
+    user_id = int(value)
+except ValueError:
+    user_id = value
+
+TOKEN = '73eaea320bdc0d3299faa475c196cfea1c4df9da4c6d291633f9fe8f83c08c4de2a3abf89fbc3ed8a44e1'
