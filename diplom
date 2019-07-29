@@ -1,7 +1,24 @@
 from urllib.parse import urlencode
 import requests
-import time
 import json
+import time
+import progressbar
+
+TOKEN = '73eaea320bdc0d3299faa475c196cfea1c4df9da4c6d291633f9fe8f83c08c4de2a3abf89fbc3ed8a44e1'
+
+params={
+    'access_token': TOKEN,
+    'v': '5.52'
+    }
+
+APP_ID = '7058341'
+AUTH_URL ='https://oauth.vk.com/authorize'
+AUTH_DATA = {
+    'client_id': APP_ID,
+    'display': 'page',
+    'scope': 'friends', 'groups'
+    'response_type': 'token'
+}
 
 class User:
     def __init__(self, user_id):
@@ -9,27 +26,97 @@ class User:
         self.first_name = None
         self.last_name = None
 
-def user_by_id(user_id):
-    user = User(user_id)
-    user_params['user_id'] = user.user_id
-    response_user = requests.get(
-        'https://api.vk.com/method/users.get',
+    def __call__(self):
+        user_params['user_id'] = user_id
+        response = requests.get(
+            'https://api.vk.com/method/groups.get',
+            params=user_params
+        )
+        response_groups_list = json.loads(response.text)
+        # print(response_groups_list)
+        return response_groups_list
+
+
+
+user_params = params.copy()
+group_params = params.copy()
+
+groups = list()
+
+class Group:
+    def __init__(self, group_id):
+        self.group_id = group_id
+
+    def __call__(self):
+        group_params['group_id'] = group_id
+        group_params['fields'] = 'members_count'
+        response = requests.get(
+            'https://api.vk.com/method/groups.getById',
+            params=group_params
+        )
+        group_info = json.loads(response.text)
+
+        return group_info
+
+
+def get_friend_list(user_id):
+    user_params['user_id'] = user_id
+    response = requests.get(
+        'https://api.vk.com/method/friends.get',
         params=user_params
     )
-    print('.', sep = '')
-    response_user_details = json.loads(response_user.text)
-    # print(response_user_details)
-    user.first_name = response_user_details['response'][0]['first_name']
-    user.last_name = response_user_details['response'][0]['last_name']
-    return user.first_name, user.last_name
+    response_list = json.loads(response.text)
+    return response_list
+
+def get_group_member(group_id):
+    group_params['group_id'] = group_id
+    response = requests.get(
+        'https://api.vk.com/method/groups.getMembers',
+        params=group_params
+    )
+
+    groups_members_list = json.loads(response.text)
+    return groups_members_list
 
 
+user_id = input('Введите id пользователя:  ')
+user = User(user_id)
 
+user_groups_list = user()
 
-value = input('Введите имя или id пользователя ')
-try:
-    user_id = int(value)
-except ValueError:
-    user_id = value
+friends_list = get_friend_list(user_id)
+friend_set = set(friends_list)
 
-TOKEN = '73eaea320bdc0d3299faa475c196cfea1c4df9da4c6d291633f9fe8f83c08c4de2a3abf89fbc3ed8a44e1'
+bar = progressbar.ProgressBar(maxval=user_groups_list['response']['count'],
+                              widgets=[
+    'Выполняем программу: ',
+    progressbar.Bar(left='[', marker='=', right=']'), # Прогресс
+
+    progressbar.SimpleProgress(),
+]).start()
+t = 0.0
+
+for group_id in user_groups_list['response']['items']:
+    group = Group(group_id)
+    user_group_info = group()
+    user_group_members = get_group_member(group_id)
+    t += 0.1
+    bar.update(t)
+    time.sleep(0.5)
+
+    # print(user_group_members)
+    try:
+        group_members_set = set(user_group_members['response']['items'][0])
+        friend_in_group = friend_set & group_members_set
+        # time.sleep(0.5)
+        if len(friend_in_group) == 0:
+            # print('Друзей пользователя в этой группе нет')
+            groups_dict = {'name': user_group_info['response'][0]['name'], 'gid': user_group_info['response'][0]['id'], 'members_count': user_group_info['response'][0]['members_count']}
+            # groups.append(groups_dict)
+            groups.append(groups_dict)
+
+    except KeyError:
+        pass
+bar.finish()
+with open("groups.json", "w", encoding="utf-8") as file:
+    json.dump(groups, file, ensure_ascii =False, sort_keys=True, indent = 4)
